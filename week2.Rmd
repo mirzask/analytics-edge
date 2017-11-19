@@ -1,0 +1,470 @@
+---
+title: "Analytics Edge - Week 2"
+output: html_notebook
+---
+
+# One Variable Linear Regression
+
+Formula is represented as
+
+$$y^i = \beta_0 + \beta_1x^i + \epsilon^i$$
+
+$y^i$ is the dependent variable for the $i$th observation 
+$x^i$ is the independent variable for the $i$th observation 
+$\epsilon^i$ is the error term for the $i$th observation 
+$\beta_0$ is the intercept coefficient
+$\beta_1$ is the regression coefficient (slope) for the independent variable, $x$
+
+The best model will aim to minimize the error terms. Perhaps the most common method of doing so is minimizing the residual sum of squared errors ($RSS$).
+
+![](https://docs.oracle.com/cd/B28359_01/datamine.111/b28129/img/scatter_plot.gif)
+
+The residual sum of squared errors is given by
+
+$$\text{RSS} = \displaystyle \sum_{i = 1}^{n}(e_i)^2 = \displaystyle \sum_{i = 1}^{n}(y_i - \hat{y}_i)^2$$
+
+An alternative approach would be to *normalize* the RSS by dividing it by the number of observations, $N$. This method is referred to as the Root Mean Squared Error ($RMSE$).
+
+$$RMSE = \sqrt{\frac{RSS}{N}} = \sqrt{\frac{1}{N}\sum_{i = 1}^{n}(y_i - \hat{y}_i)^2}$$
+
+> ? don't some use $\frac{1}{N-2}$ instead of $\frac{1}{N}$. What is the difference? I'll have to ask someone later.
+
+$$\text{RSE} = \displaystyle \sqrt{\frac{1}{n - 2}\cdot \text{RSS}} \ = \displaystyle \sqrt{\frac{1}{n - 2} \displaystyle \sum_{i = 1}^n (y_i - \hat{y}_i)^2}$$
+
+$R^2$ is another approach to measure error in a linear regression model. The upside is that it compares the "best" model to a "baseline" model that does not use any variables. In other words, the "baseline" model is $y^i = \beta_0$. The sum of squared errors for this "baseline" model is often referred to as the Total Sum of Squares ($TSS$).
+
+$$R^2 = \frac{\text{TSS - RSS}}{\text{TSS}} = 1 - \frac{\text{RSS}}{\text{TSS}}$$
+since $RSS$ and $TSS$ are the sum of squared terms, their value must be $\leq 0$ and $RSS \leq TSS$. What this means is that the linear regression model will never be worse than the "baseline" model.
+
+> Whereas our model $R^2$ will never be $\leq 0$, you should know that the *test* $R^2$ can be negative
+
+- $R^2 = 0$ is the "worst case," where $RSS = TSS$
+- $R^2 = 1$ is the "best case," where $RSS = 0$ (perfect predictive model)
+
+# Multiple Linear Regression
+
+$$Y = \beta_0 + \beta_1 x_1^i + \beta_2 x_2^i + \cdots+ \beta_k x_k^i + \epsilon^i$$
+where $k$ represents the number of independet variables in the model
+
+# Linear Regression Models in R
+
+```{r, message=FALSE}
+wine <- read_csv("~/Documents/Online Classes/analytics-edge/wine.csv")
+str(wine)
+summary(wine)
+```
+
+## Univariate Model in R
+
+Create a univariate linear regression model using Avg Growing Season Temperature (independent variable) to predict Price (dependent variable).
+
+```{r}
+model1 <- lm(Price ~ AGST, data = wine)
+summary(model1)
+```
+
+Let's break down the output:
+
+- Residuals gives the residuals, nothing surpising
+- Estimate in the 'Coefficients' column gives the $\beta$ values
+- 'Residual standard error' is NOT the same thing as Residual sum of squares (as shown below)
+- 'Residual standard error' is our $\text{RSE}$ value
+- 'Multiple R-squared' is our $R^2$ value
+- 'Adjusted R-squared' takes the $R^2$ value and "adjusts" for the number of independent variables used relative to the number of data points. If you add an independent variable that _does not_ help the model, **adjusted** $R^2$ with _decrease_.
+
+Use `model$residuals` to see a list of our error terms ($\epsilon^i$) for each $i$th observation:
+
+```{r}
+model1$residuals
+```
+
+We can then calculate the residual sum of squared errors ($RSS$) using `sum(model$residuals^2)`.
+
+```{r}
+RSS <- sum(model1$residuals^2)
+RSS
+```
+
+## Multivariate Model in R
+
+Create a multivariate linear regression model using Avg Growing Season Temperature and Harvest Rain (independent variables) to predict Price (dependent variable).
+
+```{r}
+model2 <- lm(Price ~ AGST + HarvestRain, data = wine)
+summary(model2)
+```
+
+Notice that by adding Harvest Rain to our model, our _multiple_ $R^2$ and _adjusted_ $R^2$ increased. This suggests that it improved over our previous univariate model.
+
+Calculate the residual sum of squares ($RSS$) for this model.
+
+```{r}
+RSS <- sum(model2$residuals^2)
+RSS
+```
+
+Again, compared to our previous model, we see thar our $RSS$ has improved by factoring in the Harvest Rain variable into our model.
+
+
+Now we'll create a multivariate model using all of our available independent variables to determine our dependent variable, Price.
+
+```{r}
+model3 <- lm(Price ~ AGST + HarvestRain + WinterRain + Age + FrancePop, data = wine)
+summary(model3)
+```
+
+Again we see that our _multiple_ and _adjusted_ $R^2$ values have increased.
+
+Calculating our $RSS$ for this new model we also see that our $RSS$ has even improved over our previous model.
+
+```{r}
+RSS <- sum(model3$residuals^2)
+RSS
+```
+
+# Understanding the Model
+
+Let's review the output from our 3rd model to see which independent variables are or are not helpful for our model.
+
+```{r}
+summary(model3)
+```
+
+- **Estimate**: if the coefficienct $\approx 0$, then it can likely be _excluded_ from our model
+- **Std. Error**: gives how likely the coefficient value is to vary from the estimated value
+- **t value**: the larger the absolute value of $t$, the more likely that coefficient is to be significant. $\text{t value} = \frac{\text{estimate}}{\text{std error}}$. It will be $+ \ \text{or} \ -$ depending on the estimate value.
+- **Pr(>|t|)**: gives the probability that the coefficient is actually $= 0$.
+  - Notice how this value is inversely proportional to the $t$ value.
+- **Significance codes**: refer to the coding table, but this visually highlights which variables are significant
+
+
+The take away from this walk through is that the variables 'Age' and 'FrancePop' are not significantly contributing to our model. We also see that 'WinterRain' is _almost_ at $0.05$ significance, which is denoted with the '.' in the significance code ['.' means between 0.05 and 0.10].
+
+
+Let's create a model excluding 'FrancePop':
+
+```{r}
+model4 <- lm(Price ~ AGST + HarvestRain + WinterRain + Age, data = wine)
+summary(model4)
+```
+
+We again see that 'AGST' and 'HarvestRain' are significant, but now we find that 'Age' and 'WinterRain' are significant. Additionally, looking at our **adjusted R-squared**, we see that we have improved over the previous model by removing 'FrancePop' - adjusted $R^2$ now equal 0.7943 from 0.7845. 
+
+
+# Correlation and Multicollinearity
+
+Multicollinearity is when two independent variables are _highly correlated_. 
+
+Correlation measures the _linear_ relationship between variables:
+
+- $+ 1$: perfect positive linear relationship
+- $0$: no linear relationship
+- $- 1$: perfect negative linear relationship
+
+```{r}
+cor(wine$WinterRain, wine$Price)
+cor(wine$Age, wine$FrancePop)
+```
+
+To see the Correlation of each variable with all of the others, just use `cor(df)`:
+
+
+```{r}
+cor(wine)
+```
+
+You can nicely visualize this with the `corrplot` or `corrr` packages:
+
+```{r}
+library(corrplot)
+corrplot(cor(wine), method = "shade")
+```
+
+We see that we have a **multicollinearity** problem with our independent variables 'Age' and 'FrancePop'. In other words, the indepdendent variables 'Age' and 'FrancePop' are _highly correlated_. While there is no consensus cut-off for correlation between 2 independent variables as being "too high," typically a correlation of $\pm 0.7$ is cause for concern.
+
+When dealing with insignificant variables, you will want to remove the insignificant variable _one at a time_ due to the possibility of multicollinearity.
+
+We can demonstrate how this is important by comparing 2 models:
+
+- `model4` - which models 'AGST', 'HarvestRain', 'WinterRain', **and 'Age'** to determine 'Price'
+- `model5` - which models 'AGST', 'HarvestRain' and 'WinterRain' for Price
+
+```{r}
+summary(model4)
+
+model5 <- lm(Price ~ AGST + HarvestRain + WinterRain, data=wine)
+summary(model5)
+```
+
+Comparing `model4` and `model5`, we see that had we removed the collinear variable 'Age' and 'FrancePop' we would have a less precise model ($R^2 = 0.83$ vs $R^2 = 0.75$) and missed a significant variable, 'Age.' 
+
+
+# Making Predictions
+
+Let's use some test data, `wineTest`, to help us make predictions based on our model.
+
+**Load the Test data**:
+
+```{r, message=FALSE}
+wineTest <- read_csv("~/Documents/Online Classes/analytics-edge/wine_test.csv")
+str(wineTest)
+```
+
+**Make Predictions using `predict`**:
+
+```{r}
+predictTest <- predict(model4, newdata = wineTest)
+predictTest
+```
+
+**Quantify the accuracy of the predicted model by computing $R^2$:**
+
+Recall, $R^2 = 1 - \frac{\text{RSS}}{\text{TSS}}$ and $\text{RSS} = \displaystyle \sum_{i = 1}^{n}(y_i - \hat{y}_i)^2$.
+
+Calculate $\text{RSS}$ based on known Price, $y$ and predicted Price, $\hat{y}$.
+
+```{r}
+RSS <- sum((wineTest$Price - predictTest)^2)
+```
+
+
+Calculate $\text{TSS}$ using known Price, $y$, and the mean Price _from the training set_:
+
+```{r}
+TSS <- sum((wineTest$Price - mean(wine$Price))^2)
+```
+
+Now that we've calculated $\text{RSS}$ and $\text{TSS}$, we can easily calculate $R^2$:
+
+```{r}
+1 - RSS/TSS
+```
+
+
+# Moneyball
+
+```{r, message=FALSE}
+library(dplyr)
+baseball <- read_csv("~/Documents/Online Classes/analytics-edge/baseball.csv")
+glimpse(baseball)
+
+# Filter for year < 2002
+moneyball <- baseball %>% 
+  filter(Year < 2002)
+
+# Create a new variable of diff b/w Runs scored and Runs allowed
+moneyball <- moneyball %>% 
+  mutate(RD = RS - RA)
+```
+
+**Create a scatterplot to show the relationship between 'Runs Difference' and 'Wins:**
+
+```{r}
+plot(moneyball$RD, moneyball$W)
+```
+
+
+**Create a Linear Regression Model to predict 'Wins':**
+
+```{r}
+WinsReg <- lm(W ~ RD, data = moneyball)
+summary(WinsReg)
+```
+
+**Confirm that a team needs to have a 'Runs Difference' $\geq 135$ to win at least $95$ games**
+
+Based on our model, we see that $y^i = \beta_0 + \beta_1x^i$ can be written as:
+
+$$\text{Wins} = 80.8814 + 0.1058 \times \text{Runs Difference}$$
+
+$$
+    \text{For Wins} \geq 95: \\
+    80.8814 + 0.1058 \times \text{Runs Difference} \geq 95 \\
+    \text{Runs Difference} \geq \frac{95 - 80.8814}{0.1058} \geq 133.4
+$$
+Our model, puts the 'Runs Difference' as 133.4 needed to win _at least_ 95 games, which is $\approx 135$.
+
+
+**How do we score more runs?**
+
+They determined that OBP and Slugging percentage (SLG) were significantly more important than other variables in this regard.
+
+Let's use a Linear Regression model to determine which variables are most significant for determining runs:
+
+```{r}
+RunsReg <- lm(RS ~ OBP + SLG + BA, data=moneyball)
+summary(RunsReg)
+```
+
+Notice how the coefficient estimate for batting average (BA) is _negative_, which is counter-intuitive as it suggests that teams with lower BA will score more runs. This is due to **multicollinearity** because these 3 stats are highly correlated with one another.
+
+What happens if we remove 'BA' from our model?
+
+```{r}
+RunsReg <- lm(RS ~ OBP + SLG, data=moneyball)
+summary(RunsReg)
+```
+
+The _multiple_ and _adjusted_ $R^2$ values are about the same at 0.93 even after we removed the 'BA' variable.
+
+> Which is more important to generating Runs: OBP or SLG?
+> OBP and SLG are of the same scale, so looking at the coefficienct estimates, we see that OBP is much larger than SLG. We can thus conclude that OBP is more important to scoring runs.
+
+# Recitation - Basketball Analysis
+
+```{r, message=FALSE}
+NBA <- read_csv("~/Documents/Online Classes/analytics-edge/NBA_train.csv")
+```
+
+**Can we use the difference b/w Points Scored and Points Allowed to predict the number of games a team will win?**
+
+Let's first create a variable, `PTSdiff`, which is equal to Points Scored, `PTS`, minus Points Allowed, `oppPTS`:
+
+```{r}
+NBA$PTSdiff <- NBA$PTS - NBA$oppPTS
+```
+
+Now we will create a scatterplot to demonstrate the relationship between wins, `W`, and `PTSdiff`:
+
+```{r}
+plot(NBA$PTSdiff, NBA$W)
+```
+
+Based on this, we see that linear regression will likely lead to a good prediction of 'Wins' based on `PTSdiff`.
+
+
+## Linear Regression for Basketball Wins
+
+```{r}
+WinsReg <- lm(W ~ PTSdiff, data = NBA)
+summary(WinsReg)
+```
+
+Using the values from our linear regression, we can write the relationship by the following function:
+
+$$
+\hat{y} = \hat{\beta_0} + \hat{\beta_1}x \\
+\text{Wins} = 41 + 0.0326 \times \text{Points Difference}
+$$
+If a team needs to win $\geq 42$ games to have a good chance of making it to the playoffs, what should their goal 'Points Difference' be?
+
+$$
+\text{Wins} \geq 42: \\
+\text{Points Diff} \geq \frac{42 - 41}{0.0326} \\
+\text{Points Diff} \geq 30.67
+$$
+
+## Predicting Points Scored
+
+```{r}
+PointsReg <- lm(PTS ~ `2PA` + `3PA` + FTA + AST + ORB + DRB + TOV + STL + BLK, data = NBA)
+summary(PointsReg)
+```
+
+Calculate the residual sum of squares, $\text{RSS}$:
+
+```{r}
+RSS <- sum(PointsReg$residuals^2)
+RSS
+```
+
+Calculate the Root Mean Squared Error, $RMSE$:
+
+recall, $RMSE = \sqrt{\frac{RSS}{N}} = \sqrt{\frac{1}{N}\sum_{i = 1}^{n}(y_i - \hat{y}_i)^2}$
+
+```{r}
+RMSE <- sqrt(RSS/nrow(NBA))
+RMSE
+```
+
+$184.4$ seems like a lot of points to be off by, but when you realize that it's based on the total points over the regular season (average is $8370$), it's not bad.
+
+```{r}
+mean(NBA$PTS)
+```
+
+## Picking Off Insignificant Variables
+
+```{r}
+summary(PointsReg)
+```
+
+Recall, we will want to remove insignificant variables _one at a time_ due to the possibility of multicollinearity. We have reproduced the summary table above. We will first remove turnovers, `TOV`, because it has the highest of all of the P-values at $0.6859$, i.e. is the _least_ statistically significant variable in the present model.
+
+_Excluding `TOV`_:
+
+```{r}
+PointsReg2 <- lm(PTS ~ `2PA` + `3PA` + FTA + AST + ORB + DRB + STL + BLK, data = NBA)
+summary(PointsReg2)
+```
+
+Looking at our $R^2$ values, we find that there has been no change in its value and we have simplified our model by removing turnovers, `TOV`. 
+
+Based on the $p$-value, let's remove defensive rebounds, `DRB`, next.
+
+_Excluding `DRB`_:
+
+```{r}
+PointsReg3 <- lm(PTS ~ `2PA` + `3PA` + FTA + AST + ORB + STL + BLK, data = NBA)
+summary(PointsReg3)
+```
+
+The $R^2$ values are literally identical to the previous model where `TOV` was initially excluded.
+
+Now we will remove the next insignificant variable, blocks (`BLK`):
+
+```{r}
+PointsReg4 <- lm(PTS ~ `2PA` + `3PA` + FTA + AST + ORB + STL, data = NBA)
+summary(PointsReg4)
+```
+
+Our $R^2$ values are still about the same, but now we have a simpler model that only contains significant variables.
+
+_Re-calculate your RSS and RMSE to see how these values have changed with the new model_:
+
+```{r}
+RSS_4 <- sum(PointsReg4$residuals^2)
+RMSE_4 <- sqrt(RSS_4/nrow(NBA))
+RSS_4
+RMSE_4
+
+# Compare with our previous RSS, RMSE
+RSS
+RMSE
+```
+
+The $\text{RSS}$ and $\text{RMSE}$ values have essentially stayed the same.
+
+
+# Predictions - Train vs Test
+
+Load the test data:
+
+```{r, message=FALSE}
+NBA_test <- read_csv("~/Documents/Online Classes/analytics-edge/NBA_test.csv")
+```
+
+Make predictions from the test set based on previous model, `PointsReg4`:
+
+```{r}
+PointsPredictions <- predict(PointsReg4, newdata = NBA_test)
+```
+
+Our "in-sample" $R^2$ value, i.e. the $R^2$ computed based on our training data, was $0.8991$. Now we will calculate our "out-of-sample" $R^2$, i.e. $R^2$ based on test data, to see how well our model holds up.
+
+```{r}
+RSS <- sum((NBA_test$PTS - PointsPredictions)^2)
+TSS <- sum((NBA_test$PTS - mean(NBA$PTS))^2)
+1 - RSS/TSS
+```
+
+Our "out-of-sample" $R^2$ value is calculated as $0.8127$.
+
+We can also calculate Root Mean Square Error (RMSE):
+
+```{r}
+RMSE <- sqrt(RSS/nrow(NBA_test))
+RMSE
+```
+
+
