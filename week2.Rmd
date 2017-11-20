@@ -3,6 +3,9 @@ title: "Analytics Edge - Week 2"
 output: 
   html_notebook:
     toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
   github_document: default
 ---
 
@@ -20,7 +23,7 @@ $\beta_1$ is the regression coefficient (slope) for the independent variable, $x
 
 The best model will aim to minimize the error terms. Perhaps the most common method of doing so is minimizing the residual sum of squared errors ($RSS$).
 
-![](https://docs.oracle.com/cd/B28359_01/datamine.111/b28129/img/scatter_plot.gif)
+<center>![](https://docs.oracle.com/cd/B28359_01/datamine.111/b28129/img/scatter_plot.gif)</center>
 
 The residual sum of squared errors is given by
 
@@ -36,6 +39,9 @@ $$\text{RSE} = \displaystyle \sqrt{\frac{1}{n - 2}\cdot \text{RSS}} \ = \display
 
 $R^2$ is another approach to measure error in a linear regression model. The upside is that it compares the "best" model to a "baseline" model that does not use any variables. In other words, the "baseline" model is $y^i = \beta_0$. The sum of squared errors for this "baseline" model is often referred to as the Total Sum of Squares ($TSS$).
 
+$$\text{TSS} = \displaystyle \sum_{i = 1}^n (y_i - \bar{y})^2$$
+where $\bar{y}$ is the mean of $y$.
+
 $$R^2 = \frac{\text{TSS - RSS}}{\text{TSS}} = 1 - \frac{\text{RSS}}{\text{TSS}}$$
 since $RSS$ and $TSS$ are the sum of squared terms, their value must be $\leq 0$ and $RSS \leq TSS$. What this means is that the linear regression model will never be worse than the "baseline" model.
 
@@ -43,6 +49,10 @@ since $RSS$ and $TSS$ are the sum of squared terms, their value must be $\leq 0$
 
 - $R^2 = 0$ is the "worst case," where $RSS = TSS$
 - $R^2 = 1$ is the "best case," where $RSS = 0$ (perfect predictive model)
+
+For univariate linear regression models, there is a direct relationship between the $R^2$ and the correlation between the independent and the dependent variables, such that
+
+$$R^2 = \text{Correlation coefficient}^2$$
 
 # Multiple Linear Regression
 
