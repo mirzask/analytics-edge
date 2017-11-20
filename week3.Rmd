@@ -1,0 +1,111 @@
+---
+title: "Analytics Edge - Week 3"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+  github_document: default
+---
+
+# Logistic Regression
+
+Whereas Linear Regression can be used to predict a _continuous_ variable, **Logistic Regression** allows us to make predictions where our dependent variable is a _categorical_ variable.
+
+The Logistic Function is given as
+
+$$
+p(X) = \frac{\epsilon^{\beta_0 + \beta_1x_1 + \cdots+\beta_kx_k}}{1 + \epsilon^{\beta_0 + \beta_1x_1 + \cdots+\beta_kx_k}} \\
+\text{Odds} = \frac{p(X)}{1-p(X)} = \epsilon^{\beta_0 + \beta_1x_1 + \cdots+\beta_kx_k} \\
+\text{log(Odds)} = \text{log} \Bigg(\frac{p(X)}{1-p(X)} \Bigg) = \beta_0 + \beta_1x_1 + \cdots+\beta_kx_k
+$$
+where:
+
+- $p(X)$ only takes values between $0$ and $1$
+- $p(X)/(1-p(X))$ is known as the _odds_ and takes a value between $0$ and $\infty$
+- $\text{log} \Bigg(\frac{p(X)}{1-p(X)} \Bigg)$ is known is _log-odds_ or _logit_
+
+
+```{r, message=FALSE}
+library(readr)
+library(dplyr)
+quality <- read_csv("~/Documents/Online Classes/analytics-edge/quality.csv")
+glimpse(quality)
+```
+
+Create a `table` to see how many patients received poor care (`PoorCare = 1`) vs good care (`PoorCare = 0`):
+
+```{r}
+table(quality$PoorCare)
+```
+
+If it isn't already apparent, this really just boils down to a **Classification Problem**, i.e. good care vs poor care. Our "baseline" model would entail assuming that everyone will receive 'good' care because this is the most common. Thus, we would achieve accuracy of $98/131 .\ 74.8$% with our "baseline" model.
+
+## Create a Training and Test set
+
+Use the `sample.split` function from the `caTools` package to randomly split the data into a training set and test set:
+
+```{r}
+library(caTools)
+
+set.seed(88)
+split <- sample.split(quality$PoorCare, SplitRatio = 0.75)
+```
+
+The `SplitRatio` argument indicates what percentage of the dataset you would like to have in the training set. By selecting 0.75, we are essentially calling the function to randomly select patients such that 75% of patients in our _training_ set have 'good' care and 75% in our _testing_ set have 'good' care.
+
+**How would we split the dataset up if we were working with a _continuous_ dependent variable instead?**
+
+Use the `sample` function and the `size` argument.
+
+```
+df_split <- sample(1:nrow(df), size=0.75 * nrow(df))
+
+df_train <- data[df_split,]
+df_test <- data[-df_split,]
+```
+
+Now that you've randomly assigned patients to the training and test sets, go ahead and create each dataset:
+
+```{r}
+qualityTrain <- subset(quality, split == TRUE)
+qualityTest <- subset(quality, split == FALSE)
+nrow(qualityTrain)
+nrow(qualityTest)
+```
+
+```
+# Alternative approach using filter()
+qualityTrain <- quality %>% filter(split == TRUE)
+qualityTest <- quality %>% filter(split == FALSE)
+```
+
+## Create a Logistic Regression Model
+
+Use the `glm` function, which stands for _generalized linear model_:
+
+```{r}
+QualityLog <- glm(PoorCare ~ OfficeVisits + Narcotics, data = qualityTrain, family = binomial)
+summary(QualityLog)
+```
+
+The AIC value is a measure of the quality of the model. The limitation is that it can only be used to compare models on the _same_ data set. It acts like the _adjusted_ $R^2$ that we dealt with in Linear Regression models in that it accounts for the number of variables used compared to the total number of observations.
+
+## Make Predictions
+
+```{r}
+predictTrain <- predict(QualityLog, type = "response")
+summary(predictTrain)
+```
+
+Using `type = "response"` tells the `predict` function to give us probabilities.
+
+**Are we predicting probabilities for the 'poor' care cases (as we'd expect)?**
+
+```{r}
+tapply(predictTrain, qualityTrain$PoorCare, mean)
+```
+
+This suggests that we are predicting a higher probability for the _actual_ 'poor' care and 'good' care cases.
+
