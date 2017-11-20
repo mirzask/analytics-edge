@@ -1,6 +1,9 @@
 ---
 title: "Analytics Edge - Week 2"
-output: html_notebook
+output: 
+  html_notebook:
+    toc: yes
+  github_document: default
 ---
 
 # One Variable Linear Regression
@@ -49,6 +52,7 @@ where $k$ represents the number of independet variables in the model
 # Linear Regression Models in R
 
 ```{r, message=FALSE}
+library(readr)
 wine <- read_csv("~/Documents/Online Classes/analytics-edge/wine.csv")
 str(wine)
 summary(wine)
