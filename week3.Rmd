@@ -42,7 +42,7 @@ table(quality$PoorCare)
 
 If it isn't already apparent, this really just boils down to a **Classification Problem**, i.e. good care vs poor care. Our "baseline" model would entail assuming that everyone will receive 'good' care because this is the most common. Thus, we would achieve accuracy of $98/131 .\ 74.8$% with our "baseline" model.
 
-## Create a Training and Test set
+# Create a Training and Test set
 
 Use the `sample.split` function from the `caTools` package to randomly split the data into a training set and test set:
 
@@ -81,7 +81,7 @@ qualityTrain <- quality %>% filter(split == TRUE)
 qualityTest <- quality %>% filter(split == FALSE)
 ```
 
-## Create a Logistic Regression Model
+# Create a Logistic Regression Model
 
 Use the `glm` function, which stands for _generalized linear model_:
 
@@ -92,7 +92,7 @@ summary(QualityLog)
 
 The AIC value is a measure of the quality of the model. The limitation is that it can only be used to compare models on the _same_ data set. It acts like the _adjusted_ $R^2$ that we dealt with in Linear Regression models in that it accounts for the number of variables used compared to the total number of observations.
 
-## Make Predictions
+# Make Predictions
 
 ```{r}
 predictTrain <- predict(QualityLog, type = "response")
@@ -108,4 +108,240 @@ tapply(predictTrain, qualityTrain$PoorCare, mean)
 ```
 
 This suggests that we are predicting a higher probability for the _actual_ 'poor' care and 'good' care cases.
+
+
+# Thresholding
+
+The outcome of a logistic regression model gives a probability, but we would like to convert this to a _discrete_ value, e.g. a binary prediction ('good' vs 'bad' care). This is done by classifying the probability, $p(X)$, based on a **threshold value**, $t$.
+
+You run into the possibility of Type I (FP) or Type II (FN) error depending on where you set your _threshold value_. This is often represented by a _confusion matrix_ (aka _classification matrix_) predicted vs actual classification.
+
+<center><img src="http://3.bp.blogspot.com/_txFWHHNYMJQ/THyADzbutYI/AAAAAAAAAf8/TAXL7lySrko/s1600/Picture+8.png" width=350></center>
+
+Recall,
+
+- **Sensitivity** (aka _true positive rate_) is calculated as $TP/(TP + FN)$. In other words, is the proportion of TP to all the _actual_ positives.
+- **Specificity** (aka _true negative rate_) is calculated as $TN/(TN + FP)$. In other words, is the proportion of TN to all the _actual_ negatives.
+- **PPV** is given by $TP/(TP + FP)$
+- **NPV** is given by $TN/(TN + FN)$
+
+
+<center><img src="http://www.medcalc.org/manual/_help/images/roc_intro2.png" width=300></center>
+
+A model with a _higher_ threshold value will have a _lower_ sensitivity and a _higher_ specificity (and vice versa).
+
+## Example: Threshold value 0.5
+
+```{r}
+table(qualityTrain$PoorCare, predictTrain > 0.5)
+```
+
+In this example, we _correctly_ predict 70 cases as being 'good' care, but 4 "actual" patients receiving 'good' care were incorrectly recorded as receiving 'poor' care based on our model at the 0.5 threshold value. Additionally, we have incorrectly labeled 15 pts who are actually receiving 'poor' care as receiving 'good' care.
+
+In this example,
+
+- Sensitivity = $10/(10 + 15)$ or $0.40$ 
+- Specificity = $70/(70 + 4)$ or $0.95$
+
+## Example: Threshold value 0.7
+
+```{r}
+table(qualityTrain$PoorCare, predictTrain > 0.7)
+```
+
+In this example,
+
+- Sensitivity = $8/(8 + 17)$ or $0.32$ 
+- Specificity = $73/(73 + 1)$ or $0.99$
+
+Referring back to our Sensitivity and Specificity curves at different threshold values, this is consistent. Increasing our threshold value, $t$, from $0.5$ to $0.7$ caused sensitivity to decrease and specificity to increase.
+
+<center><img src="http://www.medcalc.org/manual/_help/images/roc_intro2.png" width=300></center>
+
+As shown in the next example, decreasing our threshold value results in sensitivity to increase and specificity to decrease.
+
+## Example: Threshold value 0.2
+
+```{r}
+table(qualityTrain$PoorCare, predictTrain > 0.2)
+```
+
+In this example,
+
+- Sensitivity = $16/(16 + 9)$ or $0.64$ 
+- Specificity = $54/(54 + 20)$ or $0.73$
+
+
+# ROC Curves
+
+**Receiver Operated Characteristic** (ROC) curves can help determine which threshold value, $t$, is best. The ROC curve plots the _Sensitivity_ / _True Positive rate_ (y-axis) against the _Specificity_ / _False Positive rate_ (x-axis) at various threshold values. At point $(0, 0)$ your threshold value, $t$, is equal to $1$. Whereas $t = 1$ at $(1, 1)$ on our ROC curve.
+
+<center><img src="https://i.stack.imgur.com/kxfbR.png" width=400></center>
+
+Recall,
+
+- **True Positive rate** is another term for Sensitivity
+- **False Positive rate** ($= FP/(TN + FP)$) is the same thing as $1 - \text{Specificity}$, which is true given that $\text{Specificity} = TN/(TN + FP)$
+- **High Threshold** results in _high_ specificity, but _low_ sensitivity
+- **Low Threshold** results in _low_ specificty, but _high_ sensitivity
+
+
+## Make an ROC Curve
+
+Use the `ROCR` or `pROC` package and the prediction function from our training set, `predictTrain` to generate an ROC curve:
+
+### ROCR package
+
+```{r, message=FALSE}
+library(ROCR)
+
+ROCRpred <- prediction(predictTrain, qualityTrain$PoorCare)
+# argument 1 is our model predictions
+# argument 2 is the actual/true outcomes from dataset the model is based off of
+
+ROCRperf <- performance(ROCRpred, "tpr", "fpr")
+plot(ROCRperf)
+```
+
+- Add color by setting the argument `colorize = TRUE` in the `plot` function
+- Add threshold values to the plot using the following arguments: `print.cutoffs.at=seq(0,1,by=0.1)` and `text.adj=c(-0.2,1.7)`
+
+```{r}
+plot(ROCRperf, 
+     colorize=TRUE, 
+     print.cutoffs.at=seq(0,1,by=0.1), 
+     text.adj=c(-0.2,1.7)
+     )
+abline(a=0, b= 1) # reference line
+```
+
+### pROC package
+
+Unlike with the `prediction` function of the `ROCR` package, with `roc` function of the `pROC` package, your first argument is the response variable from the training/test set and the second argument is the predicted model.
+
+```{r, message=FALSE}
+library(pROC)
+
+pROC_train <- roc(qualityTrain$PoorCare, predictTrain)
+plot(pROC_train, col="blue", 
+     print.thres = "best", 
+     print.auc = TRUE,
+     auc.polygon = TRUE,
+     )
+
+#print.auc argument prints out the value of AUC
+#auc.polygon argument shades in the AUC
+```
+
+`pROC` can be used to find the "best" threshold value. The package offers 2 different methods - `youden` (default) and `closest.topleft`. 
+
+```{r}
+coords(pROC_train, "best")
+
+coords(pROC_train, "best", 
+       ret = c("threshold", "specificity", "sensitivity"),
+       best.method = "closest.topleft"
+       )
+```
+
+
+The thing I like about the `pROC` package is just how easy it is to get the desired values based on threshold values:
+
+```{r}
+# For the 'best' threshold value:
+
+coords(pROC_train, "best", ret = c("threshold", "specificity", "sensitivity", "accuracy", "tn", "tp", "fn", "fp", "npv", "ppv", "1-specificity", "1-sensitivity", "1-accuracy", "1-npv", "1-ppv", "precision", "recall"))
+
+# For a select threshold value, e.g. 0.5:
+
+coords(pROC_train, 0.5, ret = c("threshold", "specificity", "sensitivity", "accuracy", "tn", "tp", "fn", "fp", "npv", "ppv", "1-specificity", "1-sensitivity", "1-accuracy", "1-npv", "1-ppv", "precision", "recall"))
+```
+
+
+# Interpreting the Model
+
+## Multicollinearity
+
+Recall, this occurs when there is high correlation between independent variables. To test this, check the correlation between the independent variables.
+
+## Area Under the Curve
+
+Significance can be determined by looking at the Area Under the Curve (AUC) of our ROC curve, which is a measure of the quality of prediction. A perfect model would give an AUC of $1.00$ or $100$%.
+
+### ROCR package
+
+Using the `ROCR` package and the argument `measure = "auc", we can calculate the AUC of our model:
+
+```{r}
+AUCperf <- performance(ROCRpred, measure = "auc")
+AUCperf@y.values
+```
+
+### pROC package
+
+Just use the `auc` function and pass the roc argument in it:
+
+```{r}
+auc(pROC_train)
+
+# Alternative would be auc(qualityTrain$PoorCare, predictTrain), but we already
+# defined pROC_train as roc(qualityTrain$PoorCare, predictTrain), so we can pass that
+# and get the same result
+```
+
+
+## Accuracy
+
+Accuracy is another outcome measure to assess the model and is given by the formula:
+
+$$\text{Accuracy} = \frac{TN + TP}{N}$$
+where $N$ is the number of total observations
+
+Accuracy can easily be calculated using the `ROCR` package by using the `measure = "acc"` argument:
+
+```{r}
+accuracy_perf <- performance(ROCRpred, measure = "acc")
+plot(accuracy_perf)
+```
+
+We can then determine the threshold value that corresponds with the _maximum_ accuracy. As seen in the figure above, our cutoff corresponds with the `x.values` and accuracy with `y.values`.
+
+```{r}
+# Get index that maximizes accuracy
+ind <- which.max( slot(accuracy_perf, "y.values")[[1]] )
+
+# Calculate accuracy value at the determined index
+acc <- slot(accuracy_perf, "y.values")[[1]][ind]
+
+# Calculate the corresponding cutoff at the determined index
+cutoff <- slot(accuracy_perf, "x.values")[[1]][ind]
+
+print(c(index = ind, accuracy= acc, cutoff = cutoff))
+```
+
+
+# Example: Test Set
+
+Compute the _test_ set predictions:
+
+```{r}
+predictTest <- predict(QualityLog, type="response", newdata=qualityTest)
+```
+
+Compute the AUC for the _test_ set model you just created:
+
+**with `ROCR` package**:
+
+```{r}
+ROCRpredTest <- prediction(predictTest, qualityTest$PoorCare)
+
+AUC_test <- performance(ROCRpredTest, measure = "auc")
+AUC_test@y.values
+```
+
+**with `pROC` package**
+
+```{r}
+auc(qualityTest$PoorCare, predictTest)
+```
 
