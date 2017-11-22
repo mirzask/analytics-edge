@@ -1,5 +1,5 @@
 ---
-title: "Analytics Edge - Week 3"
+title: "Logistic Regression"
 output: 
   html_notebook:
     toc: yes
@@ -69,10 +69,10 @@ df_test <- data[-df_split,]
 Now that you've randomly assigned patients to the training and test sets, go ahead and create each dataset:
 
 ```{r}
-qualityTrain <- subset(quality, split == TRUE)
-qualityTest <- subset(quality, split == FALSE)
-nrow(qualityTrain)
-nrow(qualityTest)
+quality_train <- subset(quality, split == TRUE)
+quality_test <- subset(quality, split == FALSE)
+nrow(quality_train)
+nrow(quality_test)
 ```
 
 ```
@@ -86,8 +86,8 @@ qualityTest <- quality %>% filter(split == FALSE)
 Use the `glm` function, which stands for _generalized linear model_:
 
 ```{r}
-QualityLog <- glm(PoorCare ~ OfficeVisits + Narcotics, data = qualityTrain, family = binomial)
-summary(QualityLog)
+quality_train_model <- glm(PoorCare ~ OfficeVisits + Narcotics, data = quality_train, family = binomial)
+summary(quality_train_model)
 ```
 
 The AIC value is a measure of the quality of the model. The limitation is that it can only be used to compare models on the _same_ data set. It acts like the _adjusted_ $R^2$ that we dealt with in Linear Regression models in that it accounts for the number of variables used compared to the total number of observations.
@@ -95,8 +95,8 @@ The AIC value is a measure of the quality of the model. The limitation is that i
 # Make Predictions
 
 ```{r}
-predictTrain <- predict(QualityLog, type = "response")
-summary(predictTrain)
+pred_quality_train <- predict(quality_train_model, type = "response")
+summary(pred_quality_train)
 ```
 
 Using `type = "response"` tells the `predict` function to give us probabilities.
@@ -104,7 +104,7 @@ Using `type = "response"` tells the `predict` function to give us probabilities.
 **Are we predicting probabilities for the 'poor' care cases (as we'd expect)?**
 
 ```{r}
-tapply(predictTrain, qualityTrain$PoorCare, mean)
+tapply(pred_quality_train, quality_train$PoorCare, mean)
 ```
 
 This suggests that we are predicting a higher probability for the _actual_ 'poor' care and 'good' care cases.
@@ -133,7 +133,7 @@ A model with a _higher_ threshold value will have a _lower_ sensitivity and a _h
 ## Example: Threshold value 0.5
 
 ```{r}
-table(qualityTrain$PoorCare, predictTrain > 0.5)
+table(quality_train$PoorCare, pred_quality_train > 0.5)
 ```
 
 In this example, we _correctly_ predict 70 cases as being 'good' care, but 4 "actual" patients receiving 'good' care were incorrectly recorded as receiving 'poor' care based on our model at the 0.5 threshold value. Additionally, we have incorrectly labeled 15 pts who are actually receiving 'poor' care as receiving 'good' care.
@@ -146,7 +146,7 @@ In this example,
 ## Example: Threshold value 0.7
 
 ```{r}
-table(qualityTrain$PoorCare, predictTrain > 0.7)
+table(quality_train$PoorCare, pred_quality_train > 0.7)
 ```
 
 In this example,
@@ -163,7 +163,7 @@ As shown in the next example, decreasing our threshold value results in sensitiv
 ## Example: Threshold value 0.2
 
 ```{r}
-table(qualityTrain$PoorCare, predictTrain > 0.2)
+table(quality_train$PoorCare, pred_quality_train > 0.2)
 ```
 
 In this example,
@@ -195,19 +195,19 @@ Use the `ROCR` or `pROC` package and the prediction function from our training s
 ```{r, message=FALSE}
 library(ROCR)
 
-ROCRpred <- prediction(predictTrain, qualityTrain$PoorCare)
+ROCR_pred <- prediction(pred_quality_train, quality_train$PoorCare)
 # argument 1 is our model predictions
 # argument 2 is the actual/true outcomes from dataset the model is based off of
 
-ROCRperf <- performance(ROCRpred, "tpr", "fpr")
-plot(ROCRperf)
+ROCR_perf <- performance(ROCR_pred, "tpr", "fpr")
+plot(ROCR_perf)
 ```
 
 - Add color by setting the argument `colorize = TRUE` in the `plot` function
 - Add threshold values to the plot using the following arguments: `print.cutoffs.at=seq(0,1,by=0.1)` and `text.adj=c(-0.2,1.7)`
 
 ```{r}
-plot(ROCRperf, 
+plot(ROCR_perf, 
      colorize=TRUE, 
      print.cutoffs.at=seq(0,1,by=0.1), 
      text.adj=c(-0.2,1.7)
@@ -222,7 +222,7 @@ Unlike with the `prediction` function of the `ROCR` package, with `roc` function
 ```{r, message=FALSE}
 library(pROC)
 
-pROC_train <- roc(qualityTrain$PoorCare, predictTrain)
+pROC_train <- roc(quality_train$PoorCare, pred_quality_train)
 plot(pROC_train, col="blue", 
      print.thres = "best", 
      print.auc = TRUE,
@@ -273,7 +273,7 @@ Significance can be determined by looking at the Area Under the Curve (AUC) of o
 Using the `ROCR` package and the argument `measure = "auc", we can calculate the AUC of our model:
 
 ```{r}
-AUCperf <- performance(ROCRpred, measure = "auc")
+AUCperf <- performance(ROCR_pred, measure = "auc")
 AUCperf@y.values
 ```
 
@@ -300,7 +300,7 @@ where $N$ is the number of total observations
 Accuracy can easily be calculated using the `ROCR` package by using the `measure = "acc"` argument:
 
 ```{r}
-accuracy_perf <- performance(ROCRpred, measure = "acc")
+accuracy_perf <- performance(ROCR_pred, measure = "acc")
 plot(accuracy_perf)
 ```
 
@@ -325,7 +325,7 @@ print(c(index = ind, accuracy= acc, cutoff = cutoff))
 Compute the _test_ set predictions:
 
 ```{r}
-predictTest <- predict(QualityLog, type="response", newdata=qualityTest)
+pred_quality_test <- predict(quality_train_model, type="response", newdata=quality_test)
 ```
 
 Compute the AUC for the _test_ set model you just created:
@@ -333,15 +333,26 @@ Compute the AUC for the _test_ set model you just created:
 **with `ROCR` package**:
 
 ```{r}
-ROCRpredTest <- prediction(predictTest, qualityTest$PoorCare)
+ROCR_pred_test <- prediction(pred_quality_test, quality_test$PoorCare)
 
-AUC_test <- performance(ROCRpredTest, measure = "auc")
+AUC_test <- performance(ROCR_pred_test, measure = "auc")
 AUC_test@y.values
 ```
 
 **with `pROC` package**
 
 ```{r}
-auc(qualityTest$PoorCare, predictTest)
+auc(quality_test$PoorCare, pred_quality_test)
+```
+
+
+# Recitation - Framingham Study
+
+> The term _risk factor_ was coined by Drs. William Kannell and Roy Dawber of the Framingham Heart Study
+
+**Load the dataset**:
+
+```{r, message=FALSE}
+framingham <- read_csv("~/Documents/Online Classes/analytics-edge/quality.csv")
 ```
 

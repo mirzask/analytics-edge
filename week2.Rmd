@@ -1,5 +1,5 @@
 ---
-title: "Analytics Edge - Week 2"
+title: "Linear Regression"
 output: 
   html_notebook:
     toc: yes
@@ -32,10 +32,6 @@ $$\text{RSS} = \displaystyle \sum_{i = 1}^{n}(e_i)^2 = \displaystyle \sum_{i = 1
 An alternative approach would be to *normalize* the RSS by dividing it by the number of observations, $N$. This method is referred to as the Root Mean Squared Error ($RMSE$).
 
 $$RMSE = \sqrt{\frac{RSS}{N}} = \sqrt{\frac{1}{N}\sum_{i = 1}^{n}(y_i - \hat{y}_i)^2}$$
-
-> ? don't some use $\frac{1}{N-2}$ instead of $\frac{1}{N}$. What is the difference? I'll have to ask someone later.
-
-$$\text{RSE} = \displaystyle \sqrt{\frac{1}{n - 2}\cdot \text{RSS}} \ = \displaystyle \sqrt{\frac{1}{n - 2} \displaystyle \sum_{i = 1}^n (y_i - \hat{y}_i)^2}$$
 
 $R^2$ is another approach to measure error in a linear regression model. The upside is that it compares the "best" model to a "baseline" model that does not use any variables. In other words, the "baseline" model is $y^i = \beta_0$. The sum of squared errors for this "baseline" model is often referred to as the Total Sum of Squares ($TSS$).
 
