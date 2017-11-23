@@ -353,6 +353,107 @@ auc(quality_test$PoorCare, pred_quality_test)
 **Load the dataset**:
 
 ```{r, message=FALSE}
-framingham <- read_csv("~/Documents/Online Classes/analytics-edge/quality.csv")
+framingham <- read_csv("~/Documents/Online Classes/analytics-edge/framingham.csv")
+glimpse(framingham)
 ```
 
+## Create training and test set
+
+```{r}
+library(caTools)
+
+set.seed(1000)
+split <- sample.split(framingham$TenYearCHD, SplitRatio = 0.65)
+
+train <- subset(framingham, split == TRUE)
+test <- subset(framingham, split == FALSE)
+```
+
+## Build Logistic Regression Model
+
+Using the _training_ set, we will now build a logistic regression model:
+
+```{r}
+log_model <- glm(TenYearCHD ~ ., data = train, family = binomial)
+summary(log_model)
+```
+
+## Predictions on Test set
+
+Let us now use the model we created based on the _training_ set to make **predictions** based on the test set. We will then compare our _predictions_ to the _actual_ outcomes to see how well our model holds up.
+
+```{r}
+predict_test <- predict(log_model, type = "response", newdata = test)
+head(predict_test)
+```
+
+Now, let's create a Confusion Matrix to see how our _predictions_ compare to the _actual_ outcomes. Let us try this out for a threshold value, $t$, of 0.5.
+
+```{r}
+table(test$TenYearCHD, predict_test > 0.5)
+```
+
+## Model Accuracy
+
+**What is the Accuracy of our model?**
+
+Recall, accuracy is defined by $\text{Accuracy} = \frac{TN + TP}{N}$. So in this example, our accuracy is:
+
+$$\text{Accuracy} = \frac{1069 + 11}{1069 + 6 + 187 + 11} = 0.848$$
+
+This can easily by calculated using the `pROC` package as follows:
+
+```{r}
+pROC_object <- roc(test$TenYearCHD, predict_test)
+coords(pROC_object, 0.5, ret = "accuracy")
+```
+
+**What is the Accuracy of our "baseline" model?**
+
+Let's first determine what our "baseline" model would be by looking at our Confusion Matrix again. Here we see that the most frequent outcome is $0$, i.e. _no_ CHD event in 10 years. So in this example, our accuracy is:
+
+$$\text{Accuracy} = \frac{1069 + 6}{1069 + 6 + 187 + 11} = 0.844$$
+
+So our "baseline" model gives us an accuracy of $84.4$%. The model we developed using our _training_ set with a threshold value, $t$, of $0.5$ gave us an accuracy of $84.8$%, so our model was just _barely_ an improvement over the "baseline" model.
+
+## AUC
+
+Let's determine the out-of-sample AUC using the `pROC` package comparing the _predicted_ test set values to the _acutal_ test set values.
+
+```{r}
+# pROC_object <- roc(test$TenYearCHD, predict_test)
+auc(pROC_object)
+```
+
+Thus, we can conclude that our model can differentiate low-risk vs high-risk 10-year CHD patients (AUC = $0.742$).
+
+**Plot the AUC curve for our model**
+
+```{r}
+plot(pROC_object, col="blue", 
+     print.thres = "best", 
+     print.auc = TRUE,
+     auc.polygon = TRUE,
+     )
+```
+
+
+## External Validation
+
+Test our model on other cohorts of patients to determine how generalizable our model really is.
+
+## pROC Summary Statistics
+
+```{r}
+# Using the "best" threshold value
+
+coords(pROC_object, "best", ret = c("threshold", "specificity", "sensitivity", "accuracy", "tn", "tp", "fn", "fp", "npv", "ppv", "1-specificity", "1-sensitivity", "1-accuracy", "1-npv", "1-ppv", "precision", "recall"))
+
+# Using a specific threshold value, e.g. 0.4
+
+coords(pROC_train, 0.4, ret = c("threshold", "specificity", "sensitivity", "accuracy", "tn", "tp", "fn", "fp", "npv", "ppv", "1-specificity", "1-sensitivity", "1-accuracy", "1-npv", "1-ppv", "precision", "recall"))
+
+# Determine the "local maximas" by using "local maximas" instead of "best"
+```
+
+> The `caret` package does a great job of providing summary statistics in a "pretty" output.
