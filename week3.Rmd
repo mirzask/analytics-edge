@@ -346,7 +346,7 @@ auc(quality_test$PoorCare, pred_quality_test)
 ```
 
 
-# Recitation - Framingham Study
+# Framingham Study Example
 
 > The term _risk factor_ was coined by Drs. William Kannell and Roy Dawber of the Framingham Heart Study
 
@@ -457,3 +457,102 @@ coords(pROC_train, 0.4, ret = c("threshold", "specificity", "sensitivity", "accu
 ```
 
 > The `caret` package does a great job of providing summary statistics in a "pretty" output.
+
+# Election Forecasting - Recitation
+
+**Load the dataset**
+
+```{r, message=FALSE}
+polling <- read_csv("~/Documents/Online Classes/analytics-edge/PollingData.csv")
+glimpse(polling)
+```
+
+Although we expect $150$ (50 states $\times$ 3 elections: 2004, 2008, 2012) observations, you'll notice that we only have $145$ observations in our dataset. Let's use the `table` function to see which year(s) have missing data.
+
+```{r}
+table(polling$Year)
+```
+
+It looks like for the year $2012$, we are missing 5 observations.
+
+## Handling Missing Data
+
+> **Imputation** - fill in _missing_ (NA) values based on non-missing values.
+
+We will use the `mice` package to perform imputation for the missing values. Knowing that our missing values pertain to the polling data, let's subset this as we try to perform our imputation.
+
+```{r, message=FALSE}
+library(mice)
+
+sub_polling <- polling %>% select(Rasmussen, SurveyUSA, PropR, DiffCount)
+summary(sub_polling)
+```
+
+We see that 'Rasmussen' and 'SurveyUSA' have quite a few missing values.
+
+**Perform Imputation**
+
+```{r}
+set.seed(144)
+
+imputed_poll <- complete(mice(sub_polling))
+```
+
+The output shows us that $5$ rounds of imputation have been performed and that all of the previously missing variables have been "filled in." We can demonstrate this with the `summary` function on our _imputed_ dataset.
+
+```{r}
+summary(imputed_poll)
+```
+
+We can now plug our _imputed_ 'Rasmussen' and 'SurveyUSA' columns back into our original dataset, `polling`.
+
+```{r}
+polling$Rasmussen <- imputed_poll$Rasmussen
+polling$SurveyUSA <- imputed_poll$SurveyUSA
+```
+
+
+## Create training and test set
+
+- **Training set** - data from 2004, 2008 elections
+- **Test set** - data from 2012 election
+
+```{r}
+train <- subset(polling, Year == 2004 | Year == 2008)
+test <- subset(polling, Year == 2012)
+```
+
+
+**What is our "baseline" model?**
+
+Our "baseline" model will be the _most common_ outcome. Let's use the `table` function on our training set to determine which outcome this is, i.e. Republican or Democrat.
+
+```{r}
+table(train$Republican)
+```
+
+Here we see that the most common outcome was $1$, i.e. Republican, with $53$. So our "baseline" model will be to go with $1$, i.e. the Republican candidate will win the state. The accuracy of our "baseline" model is expected to be $53/100 = 53$%. This "baseline" model is `r emo::ji("poop")`. 
+
+A more reasonable "baseline" model would be to use one of the polls, e.g. Rasmussen, and predict that the party favored by the poll in that particular state would win. Let's create this _better_ "baseline" model now.
+
+```{r}
+# sign() if value is +, gives output +1. If value is -, gives -1. If 0, gives 0.
+
+table( sign(train$Rasmussen) )
+```
+
+This _better_ "baseline" model predicts that in $55$ cases the Republican candidate is predicted to win, in $42$ the Democratic candidate, and in $3$ cases it's unknown.
+
+**Compare _true_ vs "baseline" model predicted election outcomes.**
+
+```{r}
+table(train$Republican, sign(train$Rasmussen))
+```
+
+As you can see, our _better_ "baseline" model is a much more accurate - `r (52+42)/100` - than our previous "baseline" model ($53$% accuracy).
+
+
+
+
+
+
