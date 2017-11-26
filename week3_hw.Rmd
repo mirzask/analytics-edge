@@ -1,0 +1,246 @@
+---
+title: "Homework: Week 3 - Logistic Regression"
+output:
+  html_notebook:
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+  github_document: default
+---
+
+# Popularity of Music Records
+
+## Load the data 
+
+```{r, message=FALSE}
+library(readr)
+library(tidyverse)
+songs <- read_csv("~/Documents/Online Classes/analytics-edge/songs.csv")
+```
+
+##EDA
+
+How many observations (songs) are from the year 2010?
+
+```{r}
+table(songs$year)
+```
+
+How many songs does the dataset include for which the artist name is "Michael Jackson"?
+
+```{r}
+songs %>% filter(artistname == "Michael Jackson") %>% count()
+```
+
+Which of these songs by Michael Jackson made it to the Top 10?
+
+```{r}
+(songs %>% filter(artistname == "Michael Jackson", Top10 == 1))
+```
+
+What are the values of `timesignature` that occur in our dataset?
+
+```{r}
+sort(unique(songs$timesignature))
+```
+
+Which `timesignature` value is the most frequent among songs in our dataset?
+
+```{r}
+table(songs$timesignature)
+```
+
+Which song in our dataset has the highest tempo?
+
+```{r}
+which.max(songs$tempo)
+songs$songtitle[6206]
+
+songs %>% filter(tempo == max(tempo))
+```
+
+##Model Making
+
+How many observations (songs) are in the training set?
+
+- Training set: $\leq 2009$
+- Test set: $\geq 2010$
+
+```{r}
+SongsTrain <- subset(songs, songs$year <= 2009)
+SongsTest <- subset(songs, songs$year >= 2010)
+nrow(SongsTrain)
+```
+
+Exclude non-integer variables:
+
+```{r}
+nonvars = c("year", "songtitle", "artistname", "songID", "artistID")
+
+SongsTrain = SongsTrain[ , !(names(SongsTrain) %in% nonvars) ]
+SongsTest = SongsTest[ , !(names(SongsTest) %in% nonvars) ]
+```
+
+Build a model w/ training set:
+
+```{r}
+SongsLog1 = glm(Top10 ~ ., data=SongsTrain, family="binomial")
+summary(SongsLog1)
+```
+
+## Beware Collinearity
+
+
+What is the correlation between the variables "loudness" and "energy" in the training set?
+
+```{r}
+cor(SongsTrain$loudness, SongsTrain$energy)
+```
+
+Create a second model, which excludes "loudness":
+
+```{r}
+SongsLog2 = glm(Top10 ~ . - loudness, data=SongsTrain, family="binomial")
+summary(SongsLog2)
+```
+
+Create Model 3, which is "Model 1" without "energy"
+
+```{r}
+SongsLog3 = glm(Top10 ~ . - energy, data=SongsTrain, family=binomial)
+summary(SongsLog3)
+```
+
+## Test the Model
+
+We will be using Model 3 to validate the model
+
+```{r}
+PredictTest <- predict(SongsLog3, newdata = SongsTest, type = "response")
+
+table(SongsTest$Top10, PredictTest > 0.45)
+
+(309 + 19)/(nrow(SongsTest))
+```
+
+What would the accuracy of the "baseline"" model be on the test set?
+
+```{r}
+table(SongsTest$Top10)
+314/nrow(SongsTest)
+```
+
+How many songs does Model 3 correctly predict as Top 10 hits in 2010 (threshold 0.45)?
+
+```{r}
+table(SongsTest$Top10, PredictTest > 0.45)
+```
+
+What is the sensitivity of Model 3 on the test set, using a threshold of 0.45? specificity?
+
+```{r}
+library(pROC)
+ROC_test <- roc(SongsTest$Top10, PredictTest)
+coords(ROC_test, 0.45, ret = c("sens", "spec"))
+```
+
+# Predicting Parole Violators
+
+## Load the Data
+
+```{r, message=FALSE}
+parole <- read_csv("~/Documents/Online Classes/analytics-edge/parole.csv")
+glimpse(parole)
+```
+
+## EDA
+
+How many of the parolees in the dataset violated the terms of their parole?
+
+```{r}
+table(parole$violator)
+```
+
+Convert state, crime to unordered **factors**?
+
+```{r}
+parole$state <- as.factor(parole$state)
+parole$crime <- as.factor(parole$crime)
+summary(parole)
+```
+
+## Create Train vs Test
+
+```{r}
+set.seed(144)
+
+library(caTools)
+
+split = sample.split(parole$violator, SplitRatio = 0.7)
+
+train = subset(parole, split == TRUE)
+test = subset(parole, split == FALSE)
+```
+
+## Build a Model
+
+```{r}
+parole_model <- glm(violator ~ ., data = train, family = "binomial")
+summary(parole_model)
+```
+
+## Test the Model
+
+What is the maximum predicted probability of a violation?
+
+```{r}
+predict_parole <- predict(parole_model, newdata = test, type = "response")
+
+max(predict_parole)
+```
+
+What is the model's sensitivity? specificity? accuracy?
+
+```{r}
+ROC_parole <- roc(test$violator, predict_parole)
+coords(ROC_parole, 0.5, ret = c("sens", "spec", "acc"))
+```
+
+What is the accuracy of a simple model that predicts that every parolee is a non-violator?
+
+```{r}
+table(test$violator)
+
+179/nrow(test)
+```
+
+What is the AUC value for the model?
+
+```{r}
+auc(ROC_parole)
+```
+
+# Predicting Loan Repayment
+
+## Load the Data
+
+```{r, message=FALSE}
+loans <- read_csv("~/Documents/Online Classes/analytics-edge/loans.csv")
+glimpse(loans)
+```
+
+What proportion of the loans in the dataset were not paid in full?
+
+```{r}
+table(loans$not.fully.paid)
+
+1533/nrow(loans)
+```
+
+Which of the following variables has at least one missing observation? 
+
+```{r}
+summary(loans)
+```
+

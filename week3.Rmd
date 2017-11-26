@@ -551,8 +551,83 @@ table(train$Republican, sign(train$Rasmussen))
 
 As you can see, our _better_ "baseline" model is a much more accurate - `r (52+42)/100` - than our previous "baseline" model ($53$% accuracy).
 
+## Assess for Correlation
 
+Assess for multicollinearity of the independent variables. Recall, we will use the `cor` function to assess for correlation between these variables.
 
+```{r}
+cor(train[,3:7])
 
+corrplot::corrplot(cor(train[,3:7]))
+```
 
+## Feature Selection
+
+Looking at our correlation table, we see that `PropR` has the greatest correaltion with our desired variable, `Republican`.
+
+```{r}
+model1 <- glm(Republican ~ PropR, data = train, family = "binomial")
+summary(model1)
+```
+
+**Compute Predictions with our univariate model**
+
+```{r}
+predict1 <- predict(model1, type="response")
+head(predict1)
+```
+
+**Compare Predictions vs True Outcomes with threshold 0.5**
+
+```{r}
+table(train$Republican, predict1 >= 0.5)
+```
+
+**Add variables to our model**
+
+```{r}
+# Create model
+model2 <- glm(Republican ~ SurveyUSA + DiffCount , data = train, family = "binomial")
+
+# Calculate predictions with new model
+predict2 <- predict(model2, type="response")
+
+summary(model2)
+```
+
+This model is a bit stronger than our previous model (judging by the _decrease_ in AIC of our current model compared to the previous model). However, the downside is that neither of the independent variables is _significant_.
+
+**Is our new model _more_ accurate than our previous (univariate) model?**
+
+```{r}
+table(train$Republican, predict2 > 0.5)
+```
+
+This _new_ model makes 1 fewer mistake than our previous model did.
+
+## Test Set Predictions
+
+**Compare _true_ outcomes to our _improved_ "baseline" model**
+
+```{r}
+table(test$Republican, sign(test$Rasmussen))
+```
+
+**Compute test set predictions with `model2`**
+
+```{r}
+predict_test <- predict(model2, newdata = test, type = "response")
+```
+
+**Compare _true_ outcomes versus _predicted_ outcomes (at threshold 0.5)**
+
+```{r}
+table(test$Republican, predict_test > 0.5)
+```
+
+**Identify the 1 error our model made**
+
+```{r}
+subset(test, predict_test >= 0.5 & Republican == 0)
+```
 

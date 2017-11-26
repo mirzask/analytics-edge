@@ -477,4 +477,40 @@ RMSE <- sqrt(RSS/nrow(NBA_test))
 RMSE
 ```
 
+# `caret` approach
+
+## Wine
+
+```{r, message=FALSE}
+library(caret)
+library(readr)
+wine <- read_csv("~/Documents/Online Classes/analytics-edge/wine.csv")
+```
+
+```{r, error=FALSE}
+lm_fit <- train(Price ~ ., data = wine, method = "lm")
+summary(lm_fit)
+```
+
+```{r}
+residuals <- resid(lm_fit)
+predicted_values <- predict(lm_fit)
+
+plot(wine$Price, residuals)
+abline(0,0)
+
+plot(wine$Price, predicted_values)
+```
+
+```{r}
+varImp(lm_fit)
+
+plot(varImp(lm_fit))
+```
+
+```{r}
+dat <- data.frame(obs = wine$Price, pred = predicted_values)
+
+defaultSummary(dat)
+```
 
