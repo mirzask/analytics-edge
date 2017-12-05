@@ -1,0 +1,196 @@
+---
+title: "Classification and Regression Trees"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+  github_document: default
+---
+
+# Load data
+
+```{r, message=FALSE}
+library(readr)
+library(tidyverse)
+library(visdat)
+
+stevens <- read_csv("~/Documents/Online Classes/analytics-edge/stevens.csv")
+glimpse(stevens)
+
+vis_dat(stevens, sort_type = FALSE)
+```
+
+
+# Create Train and Test Data
+
+We will split the data based on the desired output variable, which in this case is `Reverse`. First we use `sample.split` (from the `caTools` package) to divide up proportionally based on the output (`Reverse`). Then we use `subset` to create our training and testing sets.
+
+```{r}
+library(caTools)
+
+set.seed(3000)
+
+spl <- sample.split(stevens$Reverse, SplitRatio = 0.7)
+
+Train <- subset(stevens, spl == TRUE)
+Test <- subset(stevens, spl == FALSE)
+```
+
+# Build CART model
+
+In this tutorial we will be using the `rpart` and `rpart.plot` packages, although I'll show how this can be done using the `caret` package as this is probably the more popular and feature-rich option. I also want to try out the `FFTrees` package, but we'll see if I have time to do so here.
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+StevensTree <- rpart(Reverse ~ Circuit + Issue + Petitioner + Respondent + LowerCourt + Unconst, data = Train, method = "class", minbucket = 25)
+```
+
+## Plot the Tree
+
+We will use the `prp` function to create our Tree visualization
+
+```{r}
+prp(StevensTree)
+```
+
+# Assess the CART model
+
+We will now assess how well our model predicts the desired output.
+
+## Make Predictions
+
+```{r}
+PredictCART <- predict(StevensTree, newdata = Test, type="class")
+```
+
+## Confusion Matrix
+
+```{r}
+table(Test$Reverse, PredictCART)
+```
+
+This gives us an accuracy of `r (41 + 71)/nrow(Test)`.
+
+## Make an ROC curve
+
+```{r, message=FALSE}
+library(pROC)
+
+predictROC <- predict(StevensTree, newdata = Test)
+
+pred_ROC <- roc(Test$Reverse, predictROC[,2])
+plot(pred_ROC, col="blue", 
+     print.thres = "best", 
+     print.auc = TRUE,
+     auc.polygon = TRUE,
+     )
+```
+
+# Random Forests
+
+Improves the predictive accuracy of CART by building a bunch of CART _trees_. However, the downside of this is that is is _less_ interpretable than CART trees. For more convincing about the magic of Random Forests, check out [this article](https://machinelearningmastery.com/use-random-forest-testing-179-classifiers-121-datasets/). (h/t: [partially derivative](http://partiallyderivative.com/news/2014/12/19/episode-6-the-one-about-star-trek-zombies-and-contraceptives))
+
+> Random **forest** works by constructing a lot of CART **trees**.
+
+How are the trees built? Each tree splits on a random subset of the independent variables and is built from a "bagged"/"bootstrapped" sample of the data. In this process, the data is selected randomly _with replacement_.
+
+**Random Forest Paremeters:**
+
+- `nodesize` - the minimum number of observations to subset
+- `ntree` - the number of trees to create in our forest
+
+## Build a Model
+
+```{r}
+library(randomForest)
+
+# StevensForest <- randomForest(Reverse ~ Circuit + Issue + Petitioner + Respondent + LowerCourt + Unconst, data = Train, nodesize=25, ntree=200)
+```
+
+The above code that is preceded by an octothorpe (#) will not work because `randomForest` does not offer a `method = class` argument. To bypass this, we will need to convert the desired output, `Reverse`, to a factor.
+
+```{r}
+Train$Reverse <- as.factor(Train$Reverse)
+Test$Reverse <- as.factor(Test$Reverse)
+```
+
+Now that `Reverse` is a factor, we can try create a predictive model using the `randomForest` function again.
+
+```{r}
+StevensForest = randomForest(Reverse ~ Circuit + Issue + Petitioner + Respondent + LowerCourt + Unconst, data = Train, nodesize=25)
+```
+
+We are still getting Error Messages. How do we fix this? The `randomForest` function is unable to process the `chr` variables, so these too will need to be converted to factors.
+
+```{r}
+stevens$Docket <- as.factor(stevens$Docket)
+stevens$Circuit <- as.factor(stevens$Circuit)
+stevens$Issue <- as.factor(stevens$Issue)
+stevens$Petitioner <- as.factor(stevens$Petitioner)
+stevens$Respondent <- as.factor(stevens$Respondent)
+stevens$LowerCourt <- as.factor(stevens$LowerCourt)
+
+Train <- subset(stevens, spl == TRUE)
+Test <- subset(stevens, spl == FALSE)
+
+glimpse(Train)
+```
+
+Ok, that should do it. I wanted to save a step or two, so I converted `chr` to `factor` on the original dataset, `stevens`, and plan to subset the way we did before with `spl`.
+
+```{r}
+StevensForest <- randomForest(Reverse ~ Circuit + Issue + Petitioner + Respondent + LowerCourt + Unconst, data = Train, nodesize=25, ntree=200)
+StevensForest
+```
+
+## Test the Model
+
+**Predict the Output from our model:**
+
+```{r}
+PredictForest <- predict(StevensForest, newdata = Test)
+head(PredictForest)
+```
+
+**Determine Model Accuracy:**
+
+```{r}
+table(Test$Reverse, PredictForest)
+```
+
+Thus, our **accuracy** is `r (42+75)/nrow(Test)`. 
+
+# Cross-Validation
+
+<center><img src = "http://karlrosaen.com/ml/learning-log/2016-06-20/k-fold-diagram.png" width = 600></center>
+
+k-fold cross validation breaks the data into $k$ folds, e.g. 10 in the figure above. It then estimates a model using $k-1$ folds and uses the remaining fold as the "test" fold, aka "validation set." The process is repeated again and again creating models for _each_ fold.
+
+Cross-Validation Parameters:
+
+- `cp` - complexity parameter ; mesures trdeoff between model _complexity_ nd _accuracy_
+
+
+```{r, message=FALSE}
+library(caret)
+library(e1071)
+```
+
+**Define number of folds using `trainControl` (from `caret`):**
+
+We will use `method="cv"` for cross-validation.
+
+```{r}
+numFolds <- trainControl(method="cv", number = 10) # 10 for 10 folds
+```
+
+**Test over different `cp` values:**
+
+```{r}
+cpGrid <- expand.grid(.cp = seq(0.01,0.5,0.01))
+```
+
